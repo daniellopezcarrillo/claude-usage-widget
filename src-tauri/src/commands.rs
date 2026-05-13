@@ -62,7 +62,16 @@ pub async fn refresh_via_cli(
     provider: Provider,
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
-    cli_refresher::refresh_via_cli(provider).await.map_err(|e| e.to_string())?;
+    crate::diag::log(
+        "commands",
+        &format!("refresh_via_cli invoked provider={}", provider.as_str()),
+    );
+    let r = cli_refresher::refresh_via_cli(provider).await.map_err(|e| e.to_string());
+    crate::diag::log(
+        "commands",
+        &format!("refresh_via_cli result provider={} ok={}", provider.as_str(), r.is_ok()),
+    );
+    r?;
     state.cache.invalidate(provider);
     Ok(())
 }

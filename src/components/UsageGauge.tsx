@@ -1,7 +1,9 @@
 import type { UsageWindow } from "../lib/types";
 
 function formatRemaining(resetsAt: string): string {
+  if (!resetsAt) return "사용 시 시작";
   const diff = new Date(resetsAt).getTime() - Date.now();
+  if (!Number.isFinite(diff)) return "사용 시 시작";
   if (diff <= 0) return "리셋 완료";
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);

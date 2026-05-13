@@ -3,6 +3,7 @@ mod autostart;
 mod cache;
 mod cli_refresher;
 mod commands;
+mod diag;
 mod errors;
 mod poller;
 mod providers;

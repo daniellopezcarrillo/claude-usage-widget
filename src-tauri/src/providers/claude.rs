@@ -20,8 +20,8 @@ struct OauthBlock {
 #[derive(Deserialize)]
 struct RawWindow {
     utilization: f64,
-    #[serde(rename = "resets_at")]
-    resets_at: String,
+    #[serde(rename = "resets_at", default)]
+    resets_at: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -78,12 +78,16 @@ pub(crate) fn map_raw_to_response(raw: &RawUsage) -> UsageResponse {
             _ => None,
         };
         if let Some(w) = w {
+            let (resets_at, tp) = match w.resets_at.as_deref() {
+                Some(s) if !s.is_empty() => (s.to_string(), compute_time_progress(s, *dur)),
+                _ => (String::new(), 100.0),
+            };
             windows.push(UsageWindow {
                 key: (*key).to_string(),
                 name: (*label).to_string(),
                 utilization: w.utilization,
-                resets_at: w.resets_at.clone(),
-                time_progress: compute_time_progress(&w.resets_at, *dur),
+                resets_at,
+                time_progress: tp,
             });
         }
     }
@@ -108,15 +112,38 @@ pub async fn fetch() -> AppResult<UsageResponse> {
 
     let status = res.status();
     if status == reqwest::StatusCode::UNAUTHORIZED {
+        crate::diag::log("claude", "fetch: 401 unauthorized -> Expired");
         return Err(AppError::Expired);
     }
     if !status.is_success() {
         let body = res.text().await.unwrap_or_default();
+        crate::diag::log(
+            "claude",
+            &format!("fetch: non-2xx status={} body={}", status.as_u16(), body),
+        );
         return Err(AppError::Api { status: status.as_u16(), message: body });
     }
 
-    let raw: RawUsage = res.json().await?;
-    Ok(map_raw_to_response(&raw))
+    let body = res.text().await.map_err(|e| {
+        crate::diag::log("claude", &format!("fetch: read body err={}", e));
+        AppError::from(e)
+    })?;
+    match serde_json::from_str::<RawUsage>(&body) {
+        Ok(raw) => Ok(map_raw_to_response(&raw)),
+        Err(e) => {
+            let preview: String = body.chars().take(400).collect();
+            crate::diag::log(
+                "claude",
+                &format!(
+                    "fetch: 2xx body decode failed err={} body_len={} preview={:?}",
+                    e,
+                    body.len(),
+                    preview
+                ),
+            );
+            Err(AppError::Expired)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -126,8 +153,8 @@ mod tests {
     #[test]
     fn maps_five_hour_and_seven_day() {
         let raw = RawUsage {
-            five_hour: Some(RawWindow { utilization: 42.0, resets_at: "2030-01-01T00:00:00Z".into() }),
-            seven_day: Some(RawWindow { utilization: 10.0, resets_at: "2030-01-01T00:00:00Z".into() }),
+            five_hour: Some(RawWindow { utilization: 42.0, resets_at: Some("2030-01-01T00:00:00Z".into()) }),
+            seven_day: Some(RawWindow { utilization: 10.0, resets_at: Some("2030-01-01T00:00:00Z".into()) }),
             ..Default::default()
         };
         let resp = map_raw_to_response(&raw);

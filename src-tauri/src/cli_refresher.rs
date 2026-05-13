@@ -9,6 +9,12 @@ use crate::types::Provider;
 
 const SPAWN_TIMEOUT: Duration = Duration::from_secs(30);
 
+macro_rules! logln {
+    ($($arg:tt)*) => {{
+        crate::diag::log("cli_refresher", &format!($($arg)*));
+    }};
+}
+
 fn augmented_path() -> Option<String> {
     let mut parts: Vec<PathBuf> = Vec::new();
     if let Some(home) = dirs::home_dir() {
@@ -58,46 +64,110 @@ fn mtime(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
-fn bin_name(base: &str) -> String {
-    if cfg!(windows) { format!("{}.cmd", base) } else { base.to_string() }
+fn resolve_bin(base: &str, path_override: Option<&str>) -> Option<PathBuf> {
+    let exts: &[&str] = if cfg!(windows) {
+        &[".cmd", ".exe", ".bat", ".ps1", ""]
+    } else {
+        &[""]
+    };
+    let path_str = match path_override {
+        Some(s) => s.to_string(),
+        None => std::env::var("PATH").unwrap_or_default(),
+    };
+    let sep = if cfg!(windows) { ';' } else { ':' };
+    for dir in path_str.split(sep) {
+        if dir.is_empty() { continue; }
+        for ext in exts {
+            let candidate = PathBuf::from(dir).join(format!("{}{}", base, ext));
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
 
-fn commands(provider: Provider) -> (Command, Command) {
+fn build_cmd(bin: &Path, args: &[&str], path_env: Option<&str>) -> Command {
+    if cfg!(windows) {
+        let ext = bin
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_ascii_lowercase());
+        if matches!(ext.as_deref(), Some("cmd") | Some("bat")) {
+            let mut c = Command::new("cmd");
+            c.arg("/C").arg(bin);
+            for a in args { c.arg(a); }
+            if let Some(p) = path_env { c.env("PATH", p); }
+            return c;
+        }
+    }
+    let mut c = Command::new(bin);
+    for a in args { c.arg(a); }
+    if let Some(p) = path_env { c.env("PATH", p); }
+    c
+}
+
+fn commands(provider: Provider) -> (Option<Command>, Option<Command>, String) {
     let prompt = "Reply with exactly: hi. No other text.";
     let base = match provider {
         Provider::Claude => "claude",
         Provider::Gemini => "gemini",
         Provider::Codex => "codex",
     };
-    let name = bin_name(base);
-    let (light_args, full_args): (&[&str], Vec<&str>) = match provider {
-        Provider::Claude | Provider::Gemini => (&["--version"], vec!["-p", prompt]),
-        Provider::Codex => (&["--version"], vec!["exec", prompt]),
+    let (light_args, full_args): (Vec<&str>, Vec<&str>) = match provider {
+        Provider::Claude | Provider::Gemini => (vec!["--version"], vec!["-p", prompt]),
+        Provider::Codex => (vec!["--version"], vec!["exec", prompt]),
     };
-    let mut light = Command::new(&name);
-    light.args(light_args);
-    let mut full = Command::new(&name);
-    full.args(&full_args);
-    if let Some(p) = augmented_path() {
-        light.env("PATH", &p);
-        full.env("PATH", &p);
-    }
-    (light, full)
+    let path_env = augmented_path();
+    let resolved = resolve_bin(base, path_env.as_deref());
+    let resolved_str = match &resolved {
+        Some(p) => p.display().to_string(),
+        None => format!("<not found: {}>", base),
+    };
+    let (light, full) = match resolved {
+        Some(bin) => (
+            Some(build_cmd(&bin, &light_args, path_env.as_deref())),
+            Some(build_cmd(&bin, &full_args, path_env.as_deref())),
+        ),
+        None => (None, None),
+    };
+    (light, full, resolved_str)
 }
 
 async fn run_with_timeout(mut cmd: Command) -> AppResult<(std::process::ExitStatus, String)> {
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    logln!("spawning: {:?}", cmd.as_std());
     let child = cmd
         .spawn()
-        .map_err(|e| AppError::Other(format!("spawn failed: {}", e)))?;
+        .map_err(|e| {
+            logln!("spawn failed: {}", e);
+            AppError::Other(format!("spawn failed: {}", e))
+        })?;
     let output = timeout(SPAWN_TIMEOUT, child.wait_with_output())
         .await
-        .map_err(|_| AppError::Other("cli spawn timed out".into()))??;
-    let mut tail = String::from_utf8_lossy(&output.stderr).into_owned();
+        .map_err(|_| {
+            logln!("cli spawn timed out after {:?}", SPAWN_TIMEOUT);
+            AppError::Other("cli spawn timed out".into())
+        })??;
+    let stderr_full = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout_full = String::from_utf8_lossy(&output.stdout).into_owned();
+    logln!(
+        "exit={:?} stdout_len={} stderr_len={}",
+        output.status.code(),
+        stdout_full.len(),
+        stderr_full.len()
+    );
+    if !stdout_full.trim().is_empty() {
+        logln!("stdout: {}", stdout_full.trim());
+    }
+    if !stderr_full.trim().is_empty() {
+        logln!("stderr: {}", stderr_full.trim());
+    }
+    let mut tail = stderr_full;
     if tail.trim().is_empty() {
-        tail = String::from_utf8_lossy(&output.stdout).into_owned();
+        tail = stdout_full;
     }
     let tail = tail.trim().chars().rev().take(240).collect::<String>();
     let tail: String = tail.chars().rev().collect();
@@ -107,14 +177,40 @@ async fn run_with_timeout(mut cmd: Command) -> AppResult<(std::process::ExitStat
 pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
     let path = token_path(provider);
     let before = mtime(&path);
+    logln!(
+        "refresh_via_cli start provider={} token_path={} exists={} mtime={:?} PATH_aug={:?}",
+        provider.as_str(),
+        path.display(),
+        path.exists(),
+        before,
+        augmented_path()
+    );
 
-    let (light, full) = commands(provider);
+    let (light, full, resolved) = commands(provider);
+    logln!("resolved bin: {}", resolved);
+    let (light, full) = match (light, full) {
+        (Some(l), Some(f)) => (l, f),
+        _ => {
+            logln!("FAIL provider={} — bin not found on PATH", provider.as_str());
+            return Err(AppError::Other(format!(
+                "cli not found on PATH (provider={}; resolved={})",
+                provider.as_str(),
+                resolved
+            )));
+        }
+    };
 
+    logln!("running light probe (--version)");
     let light_result = run_with_timeout(light).await;
+    if let Err(ref e) = light_result {
+        logln!("light probe err: {}", e);
+    }
     let after_light = mtime(&path);
     if after_light != before && after_light.is_some() {
+        logln!("token updated by light probe — done");
         return Ok(());
     }
+    logln!("light probe did not refresh token; running full prompt");
 
     let (status, tail) = match run_with_timeout(full).await {
         Ok(v) => v,
@@ -132,10 +228,22 @@ pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
         }
     };
     let after_full = mtime(&path);
+    logln!(
+        "full run exit={:?} after_mtime={:?} changed={}",
+        status.code(),
+        after_full,
+        after_full != before && after_full.is_some()
+    );
     if after_full != before && after_full.is_some() {
         return Ok(());
     }
     if !status.success() {
+        logln!(
+            "FAIL provider={} exit={:?} tail={}",
+            provider.as_str(),
+            status.code(),
+            tail
+        );
         return Err(AppError::Other(format!(
             "cli exit={:?} tail={} (provider={})",
             status.code(),
@@ -143,6 +251,10 @@ pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
             provider.as_str()
         )));
     }
+    logln!(
+        "FAIL provider={} — cli exit 0 but token unchanged",
+        provider.as_str()
+    );
     Err(AppError::Other(format!(
         "cli ran ok but token file unchanged (provider={}, tail={})",
         provider.as_str(),
