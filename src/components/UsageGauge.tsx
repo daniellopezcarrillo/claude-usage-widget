@@ -33,7 +33,7 @@ export default function UsageGauge({ window: w }: { window: UsageWindow }) {
       <div className="flex items-baseline justify-between mb-1">
         <span className="text-xs font-medium text-text">{w.name}</span>
         <span className="text-xs font-mono text-accent" style={{ opacity: colors.labelOpacity }}>
-          {Math.round(remain)}% 남음
+          {remain.toFixed(1)}% 남음
         </span>
       </div>
       <div className="relative h-4 rounded-full bg-surface-light">
@@ -79,7 +79,7 @@ export default function UsageGauge({ window: w }: { window: UsageWindow }) {
                 top: "50%",
                 transform: "translate(-50%, -50%)",
               }}
-              aria-label={`예상 잔량 ${Math.round(expectedRemain)}%`}
+              aria-label={`예상 잔량 ${expectedRemain.toFixed(1)}%`}
             >
               <circle cx="8" cy="8" r="6.25" />
               <path d="M8 4.5V8l2.25 1.5" />
@@ -88,7 +88,7 @@ export default function UsageGauge({ window: w }: { window: UsageWindow }) {
         )}
       </div>
       <div className="flex justify-between mt-0.5">
-        <span className="text-[10px] text-text-dim">사용 {Math.round(w.utilization)}%</span>
+        <span className="text-[10px] text-text-dim">사용 {w.utilization.toFixed(1)}%</span>
         <span className="text-[10px] text-text-dim">{formatRemaining(w.resetsAt)}</span>
       </div>
     </div>

@@ -12,13 +12,13 @@ const COLORS: Record<Provider, string> = {
 const LABELS: Record<Provider, string> = {
   claude: "Claude",
   codex: "Codex",
-  gemini: "Gemini",
+  gemini: "Antigravity",
 };
 
 const LOGIN_CMD: Record<Provider, string> = {
   claude: "claude login",
   codex: "codex login",
-  gemini: "gemini",
+  gemini: "agy",
 };
 
 export default function ProviderCard({ data }: { data: UsageResponse }) {

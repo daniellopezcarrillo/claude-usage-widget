@@ -22,7 +22,11 @@ fn augmented_path() -> Option<String> {
             if let Some(appdata) = std::env::var_os("APPDATA") {
                 parts.push(PathBuf::from(appdata).join("npm"));
             }
+            if let Some(localappdata) = std::env::var_os("LOCALAPPDATA") {
+                parts.push(PathBuf::from(localappdata).join("agy").join("bin"));
+            }
             parts.push(home.join("AppData").join("Roaming").join("npm"));
+            parts.push(home.join("AppData").join("Local").join("agy").join("bin"));
             parts.push(home.join(".bun").join("bin"));
             parts.push(home.join(".volta").join("bin"));
         } else {
@@ -62,6 +66,34 @@ fn token_path(provider: Provider) -> PathBuf {
 
 fn mtime(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// Snapshot of all token sources for a provider. agy refresh only mutates the
+/// wincred entry (Windows), so file mtime alone misses successful refreshes.
+#[derive(PartialEq, Eq, Debug)]
+struct TokenState {
+    mtime: Option<SystemTime>,
+    wincred_hash: Option<u64>,
+}
+
+fn token_state(provider: Provider) -> TokenState {
+    let mtime = mtime(&token_path(provider));
+    let wincred_hash = if matches!(provider, Provider::Gemini) && cfg!(windows) {
+        crate::providers::antigravity_cred::read_blob_hash("gemini:antigravity")
+    } else {
+        None
+    };
+    TokenState { mtime, wincred_hash }
+}
+
+fn token_refreshed(before: &TokenState, after: &TokenState) -> bool {
+    if after.mtime != before.mtime && after.mtime.is_some() {
+        return true;
+    }
+    if after.wincred_hash != before.wincred_hash && after.wincred_hash.is_some() {
+        return true;
+    }
+    false
 }
 
 fn resolve_bin(base: &str, path_override: Option<&str>) -> Option<PathBuf> {
@@ -109,20 +141,22 @@ fn build_cmd(bin: &Path, args: &[&str], path_env: Option<&str>) -> Command {
 
 fn commands(provider: Provider) -> (Option<Command>, Option<Command>, String) {
     let prompt = "Reply with exactly: hi. No other text.";
-    let base = match provider {
-        Provider::Claude => "claude",
-        Provider::Gemini => "gemini",
-        Provider::Codex => "codex",
+    let bases: &[&str] = match provider {
+        Provider::Claude => &["claude"],
+        Provider::Gemini => &["agy", "gemini"],
+        Provider::Codex => &["codex"],
     };
     let (light_args, full_args): (Vec<&str>, Vec<&str>) = match provider {
         Provider::Claude | Provider::Gemini => (vec!["--version"], vec!["-p", prompt]),
         Provider::Codex => (vec!["--version"], vec!["exec", prompt]),
     };
     let path_env = augmented_path();
-    let resolved = resolve_bin(base, path_env.as_deref());
+    let resolved = bases
+        .iter()
+        .find_map(|b| resolve_bin(b, path_env.as_deref()));
     let resolved_str = match &resolved {
         Some(p) => p.display().to_string(),
-        None => format!("<not found: {}>", base),
+        None => format!("<not found: {}>", bases.join(",")),
     };
     let (light, full) = match resolved {
         Some(bin) => (
@@ -176,9 +210,9 @@ async fn run_with_timeout(mut cmd: Command) -> AppResult<(std::process::ExitStat
 
 pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
     let path = token_path(provider);
-    let before = mtime(&path);
+    let before = token_state(provider);
     logln!(
-        "refresh_via_cli start provider={} token_path={} exists={} mtime={:?} PATH_aug={:?}",
+        "refresh_via_cli start provider={} token_path={} exists={} state={:?} PATH_aug={:?}",
         provider.as_str(),
         path.display(),
         path.exists(),
@@ -205,9 +239,9 @@ pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
     if let Err(ref e) = light_result {
         logln!("light probe err: {}", e);
     }
-    let after_light = mtime(&path);
-    if after_light != before && after_light.is_some() {
-        logln!("token updated by light probe — done");
+    let after_light = token_state(provider);
+    if token_refreshed(&before, &after_light) {
+        logln!("token updated by light probe — done (after={:?})", after_light);
         return Ok(());
     }
     logln!("light probe did not refresh token; running full prompt");
@@ -227,14 +261,15 @@ pub async fn refresh_via_cli(provider: Provider) -> AppResult<()> {
             )));
         }
     };
-    let after_full = mtime(&path);
+    let after_full = token_state(provider);
+    let changed = token_refreshed(&before, &after_full);
     logln!(
-        "full run exit={:?} after_mtime={:?} changed={}",
+        "full run exit={:?} after={:?} changed={}",
         status.code(),
         after_full,
-        after_full != before && after_full.is_some()
+        changed
     );
-    if after_full != before && after_full.is_some() {
+    if changed {
         return Ok(());
     }
     if !status.success() {
