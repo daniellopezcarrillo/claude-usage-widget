@@ -12,18 +12,31 @@ const COLORS: Record<Provider, string> = {
 const LABELS: Record<Provider, string> = {
   claude: "Claude",
   codex: "Codex",
-  gemini: "Antigravity",
+  gemini: "Gemini",
 };
 
 const LOGIN_CMD: Record<Provider, string> = {
   claude: "claude login",
   codex: "codex login",
-  gemini: "agy",
+  gemini: "gemini",
 };
+
+// Gemini provider's response shape diverges between the agy (Antigravity) path
+// and the legacy gemini-cli path — only the former carries Claude/GPT-OSS rows.
+function resolveLabel(data: UsageResponse): { label: string; loginCmd: string } {
+  if (data.provider !== "gemini") {
+    return { label: LABELS[data.provider], loginCmd: LOGIN_CMD[data.provider] };
+  }
+  const isAntigravity = data.status === "ok" && data.windows.some((w) => w.key === "claude" || w.key === "gpt");
+  return isAntigravity
+    ? { label: "Antigravity", loginCmd: "agy" }
+    : { label: "Gemini", loginCmd: "gemini" };
+}
 
 export default function ProviderCard({ data }: { data: UsageResponse }) {
   const [refreshing, setRefreshing] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
+  const { label, loginCmd } = resolveLabel(data);
 
   const triggerCliRefresh = async () => {
     setRefreshing(true);
@@ -42,7 +55,7 @@ export default function ProviderCard({ data }: { data: UsageResponse }) {
     <div className="mb-4 last:mb-0">
       <div className="flex items-center gap-2 mb-2">
         <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[data.provider] }} />
-        <span className="text-xs text-text-dim">{LABELS[data.provider]}</span>
+        <span className="text-xs text-text-dim">{label}</span>
         {data.status === "network_error" && (
           <span title={data.error} className="text-xs text-yellow-500">⚠</span>
         )}
@@ -51,7 +64,7 @@ export default function ProviderCard({ data }: { data: UsageResponse }) {
       {data.status === "not_authenticated" && (
         <div className="text-xs text-text-dim">
           <div className="mb-1">로그인되지 않음</div>
-          <code className="text-[10px] bg-surface-light px-1.5 py-0.5 rounded">{LOGIN_CMD[data.provider]}</code>
+          <code className="text-[10px] bg-surface-light px-1.5 py-0.5 rounded">{loginCmd}</code>
         </div>
       )}
 
@@ -67,7 +80,7 @@ export default function ProviderCard({ data }: { data: UsageResponse }) {
           </button>
           {cliError && (
             <div className="mt-1.5 text-[10px] text-red-400 break-all">
-              <div>CLI 실행 실패 — 수동 로그인 필요: <code>{LOGIN_CMD[data.provider]}</code></div>
+              <div>CLI 실행 실패 — 수동 로그인 필요: <code>{loginCmd}</code></div>
               <div className="mt-0.5 opacity-80">{cliError}</div>
             </div>
           )}
