@@ -31,17 +31,12 @@ export default function Header({ onRefresh, refreshing, onOpenMenu, lastUpdatedA
     await getCurrentWindow().close();
   };
 
-  const startDrag = async (e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (target.closest("button")) return;
-    await getCurrentWindow().startDragging();
-  };
-
+  // Dragging is handled by the container's single onMouseDown handler in App.tsx.
+  // Don't add another startDragging() here — two calls per mousedown make Windows
+  // start the window-move loop and then immediately cancel it (intermittent drag).
   return (
     <div
       data-window-drag-region="true"
-      onMouseDown={startDrag}
       className={`flex items-center justify-between ${compact ? "px-2 py-1" : "px-3 py-2"} border-b border-border/40 select-none cursor-move`}
     >
       {!compact && <span className="text-xs font-semibold text-text">Claude Usage Widget</span>}

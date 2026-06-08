@@ -39,6 +39,7 @@ export default function App() {
   const [titleBarVisible, setTitleBarVisible] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const hideGuardUntilRef = useRef(0);
+  const lastAppliedSizeRef = useRef<{ w: number; h: number } | null>(null);
 
   useEffect(() => {
     const armHideGuard = (event: MouseEvent) => {
@@ -178,9 +179,17 @@ export default function App() {
       const h = el.scrollHeight;
       const withMenuH = menuOpen ? Math.max(h, 360) : h;
       const clampedH = Math.max(40, Math.min(900, Math.ceil(withMenuH)));
+      const last = lastAppliedSizeRef.current;
+      // Skip redundant resizes: on a transparent + decorations:false window,
+      // every setSize can briefly flash the native Windows title bar until the
+      // next repaint. Only resize when the dimensions actually changed.
+      if (last && last.w === effectiveWidth && last.h === clampedH) return;
+      lastAppliedSizeRef.current = { w: effectiveWidth, h: clampedH };
       try {
         await getCurrentWindow().setSize(new LogicalSize(effectiveWidth, clampedH));
-      } catch {}
+      } catch {
+        lastAppliedSizeRef.current = last;
+      }
     };
     apply(rootRef.current);
     const ro = new ResizeObserver((entries) => {

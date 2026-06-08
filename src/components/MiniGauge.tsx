@@ -1,4 +1,5 @@
 import type { UsageWindow } from "../lib/types";
+import { formatRemaining } from "../lib/format";
 
 function shortLabel(name: string, provider: string): string {
   if (provider === "gemini") {
@@ -27,8 +28,9 @@ export default function MiniGauge({
   if (remain < expectedRemain) {
     barOpacity = remain < expectedRemain - 10 ? 0.25 : 0.55;
   }
+  const tooltip = `${w.name} · 사용 ${w.utilization.toFixed(1)}% · ${remain.toFixed(1)}% 남음 · ${formatRemaining(w.resetsAt)}`;
   return (
-    <span className="inline-flex items-center gap-1 text-[10px]">
+    <span className="inline-flex items-center gap-1 text-[10px]" title={tooltip}>
       <span className="text-text-dim">{shortLabel(w.name, provider)}</span>
       <span className="inline-flex items-center relative w-[28px] h-[8px] rounded-sm bg-surface-light overflow-hidden">
         <span
