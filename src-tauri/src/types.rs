@@ -99,7 +99,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            window: WindowRect { x: 1580, y: 40, width: 320, height: 520 },
+            window: WindowRect { x: 608, y: 172, width: 320, height: 520 },
             always_on_top: true,
             opacity: 0.92,
             refresh_interval_sec: 300,

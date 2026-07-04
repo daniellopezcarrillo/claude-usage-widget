@@ -81,10 +81,32 @@ pub fn run() {
                     width: settings.window.width as f64,
                     height: settings.window.height as f64,
                 }));
-                let _ = win.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                    x: settings.window.x as f64,
-                    y: settings.window.y as f64,
-                }));
+                let pos_ok = win
+                    .available_monitors()
+                    .ok()
+                    .map(|monitors| {
+                        let w = settings.window.width as i32;
+                        let h = settings.window.height as i32;
+                        let cx = settings.window.x + w / 2;
+                        let cy = settings.window.y + h / 2;
+                        monitors.iter().any(|m| {
+                            let g = m.available_position();
+                            let s = m.available_size();
+                            cx >= g.x
+                                && cy >= g.y
+                                && cx < g.x + s.width as i32
+                                && cy < g.y + s.height as i32
+                        })
+                    })
+                    .unwrap_or(false);
+                if pos_ok {
+                    let _ = win.set_position(tauri::Position::Logical(
+                        tauri::LogicalPosition {
+                            x: settings.window.x as f64,
+                            y: settings.window.y as f64,
+                        },
+                    ));
+                }
             }
 
             let show_i = MenuItem::with_id(app, "show", "보이기", true, None::<&str>)?;
