@@ -67,11 +67,11 @@ fn read_token() -> AppResult<String> {
 }
 
 const WIN_DEFS: &[(&str, &str, u64)] = &[
-    ("five_hour", "5시간", 5 * 60 * 60),
-    ("seven_day", "7일", 7 * 24 * 60 * 60),
-    ("seven_day_sonnet", "7일 (Sonnet)", 7 * 24 * 60 * 60),
-    ("seven_day_opus", "7일 (Opus)", 7 * 24 * 60 * 60),
-    ("seven_day_cowork", "7일 (Cowork)", 7 * 24 * 60 * 60),
+    ("five_hour", "5h", 5 * 60 * 60),
+    ("seven_day", "7d", 7 * 24 * 60 * 60),
+    ("seven_day_sonnet", "7d (Sonnet)", 7 * 24 * 60 * 60),
+    ("seven_day_opus", "7d (Opus)", 7 * 24 * 60 * 60),
+    ("seven_day_cowork", "7d (Cowork)", 7 * 24 * 60 * 60),
 ];
 
 fn compute_time_progress(resets_at: &str, duration_sec: u64) -> f64 {
@@ -101,10 +101,10 @@ fn windows_from_limits(limits: &[RawLimit]) -> Vec<UsageWindow> {
     let mut windows = Vec::new();
     for l in limits {
         let (key, name, dur) = if l.group == "session" {
-            ("five_hour".to_string(), "5시간".to_string(), HOUR5)
+            ("five_hour".to_string(), "5h".to_string(), HOUR5)
         } else if l.group == "weekly" {
             if l.kind == "weekly_all" {
-                ("seven_day".to_string(), "7일".to_string(), DAY7)
+                ("seven_day".to_string(), "7d".to_string(), DAY7)
             } else {
                 let model = l
                     .scope
@@ -114,7 +114,7 @@ fn windows_from_limits(limits: &[RawLimit]) -> Vec<UsageWindow> {
                 match model {
                     Some(m) => (
                         format!("weekly_scoped_{}", m.to_lowercase().replace(' ', "_")),
-                        format!("7일 ({})", m),
+                        format!("7d ({})", m),
                         DAY7,
                     ),
                     None => continue,
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn limits_array_takes_priority_and_maps_fable_scope() {
-        // 2026-07-03 실제 응답 축약본 (limits 기반, 최상위 모델 키는 전부 null)
+        // 2026-07-03 actual response summary (limits based, top-level model keys all null)
         let body = r#"{
             "five_hour": {"utilization": 25.0, "resets_at": "2030-01-01T00:00:00Z"},
             "seven_day": {"utilization": 20.0, "resets_at": "2030-01-01T00:00:00Z"},
@@ -259,12 +259,12 @@ mod tests {
         let resp = map_raw_to_response(&raw);
         assert_eq!(resp.windows.len(), 3);
         assert_eq!(resp.windows[0].key, "five_hour");
-        assert_eq!(resp.windows[0].name, "5시간");
+        assert_eq!(resp.windows[0].name, "5h");
         assert_eq!(resp.windows[0].utilization, 25.0);
         assert_eq!(resp.windows[1].key, "seven_day");
-        assert_eq!(resp.windows[1].name, "7일");
+        assert_eq!(resp.windows[1].name, "7d");
         assert_eq!(resp.windows[2].key, "weekly_scoped_fable");
-        assert_eq!(resp.windows[2].name, "7일 (Fable)");
+        assert_eq!(resp.windows[2].name, "7d (Fable)");
         assert_eq!(resp.windows[2].utilization, 31.0);
     }
 

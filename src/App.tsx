@@ -204,9 +204,9 @@ export default function App() {
   const activeLabel = (() => {
     if (!activeFetchedAt) return "—";
     const diffSec = Math.floor((Date.now() - activeFetchedAt.getTime()) / 1000);
-    if (diffSec < 60) return `${diffSec}초 전`;
-    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}분 전`;
-    return `${Math.floor(diffSec / 3600)}시간 전`;
+    if (diffSec < 60) return `${diffSec}s atrás`;
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m atrás`;
+    return `${Math.floor(diffSec / 3600)}h atrás`;
   })();
 
   const cycleProvider = () => {
@@ -278,7 +278,7 @@ export default function App() {
           <button
             onClick={cycleProvider}
             className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded bg-surface-light/60 text-[10px] font-semibold hover:bg-surface-light"
-            title={`${PROVIDER_LABELS[activeTab]} (클릭해서 전환)`}
+            title={`${PROVIDER_LABELS[activeTab]} (click para cambiar)`}
           >
             {PROVIDER_CODE[activeTab]}
           </button>
@@ -298,13 +298,13 @@ export default function App() {
                 }
               }}
               className="px-1.5 py-0.5 text-[10px] rounded bg-accent/20 hover:bg-accent/30 text-text"
-              title="CLI로 토큰 갱신"
+              title="Actualizar token vía CLI"
             >
-              만료 ↻
+              Expirado ↻
             </button>
           ) : (
             <span className="text-[10px] text-text-dim">
-              {activeSnap?.response.status === "not_authenticated" ? "로그인 안됨" : "—"}
+              {activeSnap?.response.status === "not_authenticated" ? "No autenticado" : "—"}
             </span>
           )}
         </div>
@@ -335,7 +335,7 @@ export default function App() {
           className={compact ? "px-1.5 py-1.5" : "px-3 py-3"}
           style={compact ? { zoom: 0.75 } : undefined}
         >
-          {!activeSnap && <div className="text-xs text-text-dim text-center py-4">로딩 중...</div>}
+          {!activeSnap && <div className="text-xs text-text-dim text-center py-4">Cargando...</div>}
           {activeSnap && <ProviderCard data={activeSnap.response} />}
         </div>
       </div>
@@ -344,7 +344,7 @@ export default function App() {
         style={bgStyle}
       >
         <div className={`${compact ? "px-2 py-1" : "px-3 py-1.5"} border-t border-border/40 text-[10px] text-text-dim text-right`}>
-          마지막 갱신: {activeLabel}
+          Última actualización: {activeLabel}
         </div>
       </div>
       {menuOpen && settings && (

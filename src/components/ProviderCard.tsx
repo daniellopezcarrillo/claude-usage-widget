@@ -63,24 +63,24 @@ export default function ProviderCard({ data }: { data: UsageResponse }) {
 
       {data.status === "not_authenticated" && (
         <div className="text-xs text-text-dim">
-          <div className="mb-1">로그인되지 않음</div>
+          <div className="mb-1">No autenticado</div>
           <code className="text-[10px] bg-surface-light px-1.5 py-0.5 rounded">{loginCmd}</code>
         </div>
       )}
 
       {data.status === "expired" && (
         <div className="text-xs">
-          <div className="mb-1.5 text-text-dim">토큰 만료</div>
+          <div className="mb-1.5 text-text-dim">Token expirado</div>
           <button
             onClick={triggerCliRefresh}
             disabled={refreshing}
             className="px-2 py-1 text-[11px] rounded bg-accent/20 hover:bg-accent/30 disabled:opacity-50"
           >
-            {refreshing ? "갱신 중... (최대 15초)" : "CLI로 갱신"}
+            {refreshing ? "Actualizando... (máx 15s)" : "Actualizar vía CLI"}
           </button>
           {cliError && (
             <div className="mt-1.5 text-[10px] text-red-400 break-all">
-              <div>CLI 실행 실패 — 수동 로그인 필요: <code>{loginCmd}</code></div>
+              <div>Fallo CLI — login manual requerido: <code>{loginCmd}</code></div>
               <div className="mt-0.5 opacity-80">{cliError}</div>
             </div>
           )}
@@ -100,7 +100,7 @@ export default function ProviderCard({ data }: { data: UsageResponse }) {
       {data.status === "ok" && data.extraUsage?.isEnabled && (
         <div className="mt-1 pt-1 border-t border-border/40">
           <div className="flex items-baseline justify-between">
-            <span className="text-xs text-text-dim">추가 사용</span>
+            <span className="text-xs text-text-dim">Uso extra</span>
             <span className="text-xs font-mono text-text-dim">
               ${data.extraUsage.usedCredits.toFixed(2)}
               {data.extraUsage.monthlyLimit > 0 && ` / $${data.extraUsage.monthlyLimit.toLocaleString()}`}

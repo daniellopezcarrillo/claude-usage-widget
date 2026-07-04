@@ -45,21 +45,21 @@ export default function Header({ onRefresh, refreshing, onOpenMenu, lastUpdatedA
         <button
           onClick={onRefresh}
           disabled={disabled}
-          title={disabled && cooldownLeft > 0 ? `${cooldownLeft}초 후 가능` : "새로고침"}
+          title={disabled && cooldownLeft > 0 ? `Disponible en ${cooldownLeft}s` : "Actualizar"}
           className="w-6 h-6 rounded hover:bg-surface-light disabled:opacity-40 text-text-dim hover:text-text"
         >
           <span className={refreshing ? "inline-block animate-spin" : ""}>⟳</span>
         </button>
         <button
           onClick={onOpenMenu}
-          title="메뉴"
+          title="Menú"
           className="w-6 h-6 rounded hover:bg-surface-light text-text-dim hover:text-text"
         >
           ⋯
         </button>
         <button
           onClick={close}
-          title="닫기"
+          title="Cerrar"
           className="w-6 h-6 rounded hover:bg-red-500/30 text-text-dim hover:text-text"
         >
           ×

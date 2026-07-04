@@ -38,9 +38,9 @@ pub(crate) struct RateLimitsResult {
 fn window_name(dur_mins: u64) -> String {
     let hours = dur_mins / 60;
     if hours >= 24 {
-        format!("{}일", hours / 24)
+        format!("{}d", hours / 24)
     } else {
-        format!("{}시간", hours)
+        format!("{}h", hours)
     }
 }
 

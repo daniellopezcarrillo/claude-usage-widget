@@ -8,9 +8,9 @@ function shortLabel(name: string, provider: string): string {
     if (name === "Pro") return "P";
     return name.slice(0, 2).toUpperCase();
   }
-  const hourMatch = name.match(/(\d+)\s*시간/);
+  const hourMatch = name.match(/(\d+)\s*h/);
   if (hourMatch) return `${hourMatch[1]}h`;
-  const dayMatch = name.match(/(\d+)\s*일(?:\s*\((\w)\w*\))?/);
+  const dayMatch = name.match(/(\d+)\s*d(?:\((\w)\w*\))?/);
   if (dayMatch) return dayMatch[2] ? `${dayMatch[1]}d(${dayMatch[2].toLowerCase()})` : `${dayMatch[1]}d`;
   return name.slice(0, 3);
 }
@@ -28,7 +28,7 @@ export default function MiniGauge({
   if (remain < expectedRemain) {
     barOpacity = remain < expectedRemain - 10 ? 0.25 : 0.55;
   }
-  const tooltip = `${w.name} · 사용 ${w.utilization.toFixed(1)}% · ${remain.toFixed(1)}% 남음 · ${formatRemaining(w.resetsAt)}`;
+  const tooltip = `${w.name} · Uso ${w.utilization.toFixed(1)}% · ${remain.toFixed(1)}% restante · ${formatRemaining(w.resetsAt)}`;
   return (
     <span className="inline-flex items-center gap-1 text-[10px]" title={tooltip}>
       <span className="text-text-dim">{shortLabel(w.name, provider)}</span>
