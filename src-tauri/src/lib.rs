@@ -81,17 +81,20 @@ pub fn run() {
                     width: settings.window.width as f64,
                     height: settings.window.height as f64,
                 }));
-                let pos_ok = win
+                let scale = win.scale_factor().unwrap_or(1.0);
+                let lx = (settings.window.x as f64 * scale) as i32;
+                let ly = (settings.window.y as f64 * scale) as i32;
+                let lw = (settings.window.width as f64 * scale) as i32;
+                let lh = (settings.window.height as f64 * scale) as i32;
+                let on_screen = win
                     .available_monitors()
                     .ok()
                     .map(|monitors| {
-                        let w = settings.window.width as i32;
-                        let h = settings.window.height as i32;
-                        let cx = settings.window.x + w / 2;
-                        let cy = settings.window.y + h / 2;
+                        let cx = lx + lw / 2;
+                        let cy = ly + lh / 2;
                         monitors.iter().any(|m| {
-                            let g = m.available_position();
-                            let s = m.available_size();
+                            let g = m.position();
+                            let s = m.size();
                             cx >= g.x
                                 && cy >= g.y
                                 && cx < g.x + s.width as i32
@@ -99,7 +102,7 @@ pub fn run() {
                         })
                     })
                     .unwrap_or(false);
-                if pos_ok {
+                if on_screen {
                     let _ = win.set_position(tauri::Position::Logical(
                         tauri::LogicalPosition {
                             x: settings.window.x as f64,
